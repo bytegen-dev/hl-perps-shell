@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hl-xfgen-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hlxfgen
+      POSTGRES_PASSWORD: hlxfgen
+      POSTGRES_DB: hlxfgen
+    ports:
+      - "5440:5432"
+    volumes:
+      - hl_xfgen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hlxfgen -d hlxfgen"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hl_xfgen_pgdata:

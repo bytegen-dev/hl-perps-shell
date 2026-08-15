@@ -1,0 +1,44 @@
+[project]
+name = "hl-xfgen"
+version = "0.1.0"
+description = "Hyperliquid X-Factor Gen — personal trading and research tooling"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "hl-terminal",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+hl-terminal = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+pythonpath = [
+    "packages/hl-client/src",
+    "packages/core/src",
+    "packages/historical/src",
+    "packages/terminal/src",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true

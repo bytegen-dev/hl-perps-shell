@@ -1,0 +1,27 @@
+[project]
+name = "hl-terminal"
+version = "0.1.0"
+description = "CLI trading terminal for Hyperliquid"
+requires-python = ">=3.12"
+dependencies = [
+    "hl-client",
+    "hl-core",
+    "hl-historical",
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.scripts]
+hl = "hl_terminal.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hl_terminal"]
+
+[tool.uv.sources]
+hl-client = { workspace = true }
+hl-core = { workspace = true }
+hl-historical = { workspace = true }
