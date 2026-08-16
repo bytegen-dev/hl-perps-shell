@@ -18,12 +18,32 @@ class Position:
 
 
 @dataclass(frozen=True, slots=True)
+class SpotBalance:
+    coin: str
+    total: float
+    hold: float
+
+    @property
+    def available(self) -> float:
+        return max(self.total - self.hold, 0.0)
+
+
+@dataclass(frozen=True, slots=True)
 class AccountSummary:
     account_value: float
     total_margin_used: float
     total_notional: float
     withdrawable: float
+    spot_usdc_total: float
+    spot_usdc_hold: float
+    spot_usdc_available: float
     raw: dict[str, Any]
+    spot_raw: dict[str, Any]
+
+    @property
+    def tradable_usdc(self) -> float:
+        """USDC available for trading in unified / spot clearinghouse."""
+        return self.spot_usdc_available
 
 
 @dataclass(frozen=True, slots=True)

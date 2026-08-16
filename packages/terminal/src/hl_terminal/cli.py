@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
@@ -11,8 +12,10 @@ from hl_client import (
     generate_wallet,
     normalize_eth_address,
     save_wallet_file,
+    wallet_from_private_key,
 )
 from hl_client.exceptions import HyperliquidClientError, TradingNotConfiguredError
+from hl_client.tpsl import TpslKind
 from hl_client.wallet_store import import_wallet_file_to_db, persist_wallet_to_db
 from hl_core import (
     WalletStore,
@@ -22,10 +25,35 @@ from hl_core import (
     init_database,
     setup_logging,
 )
+from hl_core.config import Network
 from rich.console import Console
 from rich.table import Table
 
+from hl_terminal.env_file import resolve_project_path, upsert_env_vars
+from hl_terminal.fills import filter_fills, print_fills_table
+from hl_terminal.find import (
+    fetch_mids_for_markets,
+    find_perp_markets,
+    format_other_network_hint,
+    print_market_search_table,
+)
 from hl_terminal.historical_cli import historical_app
+from hl_terminal.orders import print_open_orders_table
+from hl_terminal.responses import print_exchange_result
+from hl_terminal.sizing import (
+    ResolvedOrderSize,
+    format_close_proceeds_display,
+    format_pnl,
+    format_total_upnl,
+    print_position_detail,
+    print_positions_table,
+    resolve_close_size,
+    resolve_order_size,
+    total_positions_margin,
+    total_positions_notional,
+    total_positions_upnl,
+)
+from hl_terminal.tpsl import format_tpsl_summary, resolve_tpsl_order
 from hl_terminal.ui import loading
 
 app = typer.Typer(
@@ -57,26 +85,43 @@ def _print_network(client: HyperliquidClient) -> None:
         console.print(f"[cyan]Network:[/cyan] {client.settings.network}")
 
 
-def _side_from_flags(*, buy: bool, sell: bool) -> bool:
-    if buy == sell:
-        raise typer.BadParameter("Specify exactly one of --buy or --sell.")
-    return buy
+def _resolve_trade_side(
+    *,
+    buy: bool,
+    sell: bool,
+    long: bool,
+    short: bool,
+    skip_prompts: bool,
+) -> bool:
+    go_long = buy or long
+    go_short = sell or short
+    if go_long and go_short:
+        raise typer.BadParameter("Choose either long or short, not both.")
+    if go_long:
+        return True
+    if go_short:
+        return False
+    if skip_prompts:
+        raise typer.BadParameter("Specify --long or --short when using -y.")
+    choice = typer.prompt("Long or short? [l/s]", default="l").strip().lower()
+    if choice in {"l", "long"}:
+        return True
+    if choice in {"s", "short"}:
+        return False
+    raise typer.BadParameter("Enter l/long for long or s/short for short.")
 
 
 def _confirm_trade(client: HyperliquidClient, summary: str, *, yes: bool) -> None:
     _print_network(client)
     if yes:
         return
-    if client.settings.network == "mainnet" and not typer.confirm(f"{summary}. Continue?"):
+    if not typer.confirm(f"{summary}. Continue?"):
         console.print("Cancelled.")
         raise typer.Exit(code=0)
 
 
-def _print_order_result(result: object) -> None:
-    if hasattr(result, "raw"):
-        console.print_json(json.dumps(result.raw, indent=2))  # type: ignore[union-attr]
-    else:
-        console.print_json(json.dumps(result, indent=2))
+def _print_order_result(result: object, *, headline: str | None = None) -> None:
+    print_exchange_result(console, result, headline=headline)
 
 
 def _persist_wallet_to_db(
@@ -121,6 +166,225 @@ def main() -> None:
 
 def _loading_message(action: str) -> str:
     return f"{action} ({get_settings().network})..."
+
+
+def _trading_client() -> HyperliquidClient:
+    with loading(_loading_message("Connecting to Hyperliquid")):
+        return _client()
+
+
+def _run_trade[T](
+    summary: str,
+    *,
+    yes: bool,
+    action: str,
+    execute: Callable[[HyperliquidClient], T],
+) -> T:
+    client = _trading_client()
+    _confirm_trade(client, summary, yes=yes)
+    with loading(_loading_message(action)):
+        return execute(client)
+
+
+def _run_sized_trade[T](
+    coin: str,
+    raw_size: str,
+    *,
+    yes: bool,
+    action: str,
+    price: float | None = None,
+    usd: bool = False,
+    coin_units: bool = False,
+    notional: bool = False,
+    leverage: int | None = None,
+    cross: bool = False,
+    summary: Callable[[ResolvedOrderSize], str],
+    execute: Callable[[HyperliquidClient, float], T],
+) -> tuple[T, ResolvedOrderSize]:
+    client = _trading_client()
+    with loading(_loading_message("Resolving order size")):
+        if leverage is not None:
+            client.update_leverage(coin, leverage, is_cross=cross)
+        resolved = resolve_order_size(
+            client,
+            coin,
+            raw_size,
+            price=price,
+            usd=usd,
+            coin_units=coin_units,
+            notional=notional,
+            leverage_override=leverage,
+        )
+    _confirm_trade(client, summary(resolved), yes=yes)
+    with loading(_loading_message(action)):
+        return execute(client, resolved.coin_size), resolved
+
+
+def _run_close_trade[T](
+    coin: str,
+    *,
+    raw_size: str | None = None,
+    percent: float | None = None,
+    yes: bool,
+    usd: bool = False,
+    coin_units: bool = False,
+    execute: Callable[[HyperliquidClient, float], T],
+) -> tuple[T, ResolvedOrderSize]:
+    client = _trading_client()
+    with loading(_loading_message("Resolving close size")):
+        resolved = resolve_close_size(
+            client,
+            coin,
+            raw_size,
+            percent=percent,
+            usd=usd,
+            coin_units=coin_units,
+        )
+    _confirm_trade(
+        client,
+        f"Market close {resolved.display}",
+        yes=yes,
+    )
+    with loading(_loading_message("Closing position")):
+        return execute(client, resolved.coin_size), resolved
+
+
+def _run_full_close_trade[T](
+    coin: str,
+    *,
+    yes: bool,
+    slippage: float,
+    execute: Callable[[HyperliquidClient], T],
+) -> T:
+    client = _trading_client()
+    position = client.get_position(coin)
+    if position is None:
+        raise HyperliquidClientError(f"No open position for {coin.upper()}.")
+    summary = (
+        "Market close "
+        f"{format_close_proceeds_display(position=position, coin_size=abs(position.size))}"
+    )
+    _confirm_trade(client, summary, yes=yes)
+    with loading(_loading_message("Closing position")):
+        return execute(client)
+
+
+def _run_tpsl_trade[T](
+    coin: str,
+    *,
+    kind: TpslKind,
+    trigger_px: float,
+    limit_px: float | None,
+    is_market: bool,
+    raw_size: str | None = None,
+    percent: float | None = None,
+    usd: bool = False,
+    coin_units: bool = False,
+    yes: bool,
+    execute: Callable[[HyperliquidClient, float], T],
+) -> tuple[T, ResolvedOrderSize]:
+    client = _trading_client()
+    with loading(_loading_message("Resolving TP/SL")):
+        _position, resolved, _mark = resolve_tpsl_order(
+            client,
+            coin,
+            kind=kind,
+            trigger_px=trigger_px,
+            raw_size=raw_size,
+            percent=percent,
+            usd=usd,
+            coin_units=coin_units,
+        )
+    mode = "market" if is_market else "limit"
+    summary = format_tpsl_summary(
+        kind=kind,
+        coin=coin,
+        trigger_px=trigger_px,
+        limit_px=limit_px,
+        mode=mode,
+        resolved=resolved,
+    )
+    _confirm_trade(client, summary, yes=yes)
+    with loading(_loading_message("Placing TP/SL")):
+        return execute(client, resolved.coin_size), resolved
+
+
+def _tpsl_options(
+    *,
+    limit: float | None,
+    limit_order: bool,
+) -> tuple[float | None, bool]:
+    is_market = not limit_order
+    return limit, is_market
+
+
+def _place_tpsl_command(
+    *,
+    kind: TpslKind,
+    coin: str,
+    trigger: float,
+    limit: float | None,
+    limit_order: bool,
+    size: str | None,
+    percent: float | None,
+    usd: bool,
+    coin_units: bool,
+    yes: bool,
+) -> None:
+    limit_px, is_market = _tpsl_options(
+        limit=limit,
+        limit_order=limit_order,
+    )
+    label = "TP" if kind == "tp" else "SL"
+    try:
+        result, resolved = _run_tpsl_trade(
+            coin,
+            kind=kind,
+            trigger_px=trigger,
+            limit_px=limit_px,
+            is_market=is_market,
+            raw_size=size,
+            percent=percent,
+            usd=usd,
+            coin_units=coin_units,
+            yes=yes,
+            execute=lambda client, coin_size: client.place_position_tpsl(
+                coin,
+                kind=kind,
+                trigger_px=trigger,
+                size=coin_size,
+                limit_px=limit_px,
+                is_market=is_market,
+            ),
+        )
+    except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    mode = "market" if is_market else "limit"
+    headline = format_tpsl_summary(
+        kind=kind,
+        coin=coin,
+        trigger_px=trigger,
+        limit_px=limit_px,
+        mode=mode,
+        resolved=resolved,
+    )
+    _print_order_result(result, headline=headline.replace(f"{label} ", f"{label} placed · ", 1))
+
+
+_SIZE_HELP = (
+    "USD margin by default (30, $30, 30usd). Position size = margin × leverage. "
+    "Coin units: --coin or 0.01eth. Size in USD: --notional"
+)
+_CLOSE_SIZE_HELP = (
+    "Partial close size. Percent: 50%. USD position size: 15 or $15. "
+    "Coin units: --coin or 0.01eth. Or use --percent / -p."
+)
+_TPSL_SIZE_HELP = (
+    "Size to close on trigger (default: full position). Same formats as close: "
+    "50%, 15, --percent / -p, --coin."
+)
 
 
 @app.command("mids")
@@ -177,6 +441,63 @@ def mids(
     console.print(table)
 
 
+@app.command("find")
+def find_markets(
+    query: Annotated[str, typer.Argument(help="Search perp markets by substring, e.g. SPCX")],
+    dex: Annotated[
+        str | None, typer.Option("--dex", help="Limit search to one HIP-3 dex, e.g. xyz")
+    ] = None,
+    network: Annotated[
+        Network | None,
+        typer.Option("--network", help="Search a specific network instead of .env default"),
+    ] = None,
+) -> None:
+    """Search perpetual markets across all dexes."""
+    settings = get_settings()
+    if network is not None:
+        settings = settings.model_copy(update={"network": network})
+
+    try:
+        with loading(_loading_message("Searching markets")):
+            client = HyperliquidClient.readonly(settings)
+            matches = find_perp_markets(client, query, dex=dex)
+            mids = fetch_mids_for_markets(client, matches) if matches else {}
+            other_network_hint = (
+                None
+                if matches
+                else format_other_network_hint(
+                    query,
+                    current_network=settings.network,
+                    dex=dex,
+                )
+            )
+    except (HyperliquidClientError, ValueError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_network(client)
+    if not matches:
+        if dex:
+            console.print(
+                f'No perp markets matching "{query}" on {settings.network} dex {dex}.'
+            )
+        else:
+            console.print(f'No perp markets matching "{query}" on {settings.network}.')
+        if other_network_hint:
+            console.print(f"[yellow]{other_network_hint}[/yellow]")
+            console.print(
+                "[dim]Try: hl find "
+                f'{query}{f" --dex {dex}" if dex else ""} --network '
+                f'{"mainnet" if settings.network == "testnet" else "testnet"}[/dim]'
+            )
+        return
+
+    title = f'Markets matching "{query}" ({client.settings.network})'
+    if dex:
+        title = f'Markets matching "{query}" on {dex} ({client.settings.network})'
+    print_market_search_table(console, matches, mids=mids, title=title)
+
+
 @app.command("status")
 def status() -> None:
     """Show account summary and open positions."""
@@ -184,40 +505,48 @@ def status() -> None:
         with loading(_loading_message("Connecting to Hyperliquid")):
             client = _client()
             summary = client.get_account_summary()
+            all_time_pnl = client.get_all_time_pnl()
             positions = client.get_positions()
+            open_orders = client.get_open_orders()
+            mark_prices = (
+                {name: float(price) for name, price in client.get_perp_mids().items()}
+                if positions
+                else {}
+            )
     except HyperliquidClientError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
     _print_network(client)
     console.print(f"[bold]Account:[/bold] {client.account_address}")
-    console.print(f"[bold]Account value:[/bold] ${summary.account_value:,.2f}")
-    console.print(f"[bold]Margin used:[/bold] ${summary.total_margin_used:,.2f}")
-    console.print(f"[bold]Withdrawable:[/bold] ${summary.withdrawable:,.2f}")
+    console.print(f"[bold]Tradable USDC:[/bold] ${summary.tradable_usdc:,.2f}")
+    console.print(
+        f"[bold]Total positions:[/bold] ${total_positions_notional(positions):,.2f}"
+    )
+    console.print(
+        f"[bold]Total margin:[/bold] ${total_positions_margin(positions):,.2f}"
+    )
+    total_upnl = total_positions_upnl(positions)
+    upnl_style = "green" if total_upnl >= 0 else "red"
+    console.print(
+        f"[bold]Total uPnL:[/bold] [{upnl_style}]{format_total_upnl(positions)}[/{upnl_style}]"
+    )
+    total_pnl_style = "green" if all_time_pnl >= 0 else "red"
+    console.print(
+        f"[bold]Total PnL:[/bold] [{total_pnl_style}]{format_pnl(all_time_pnl)}[/{total_pnl_style}]"
+    )
+    if summary.spot_usdc_hold > 0:
+        console.print(
+            f"[dim]USDC locked (margin & orders):[/dim] "
+            f"${summary.spot_usdc_hold:,.2f}"
+        )
 
     if not positions:
         console.print("\nNo open positions.")
-        return
+    else:
+        print_positions_table(console, positions, mark_prices=mark_prices)
 
-    table = Table(title="Open positions")
-    table.add_column("Coin")
-    table.add_column("Size", justify="right")
-    table.add_column("Entry", justify="right")
-    table.add_column("uPnL", justify="right")
-    table.add_column("Lev", justify="right")
-
-    for pos in positions:
-        entry = f"{pos.entry_px:.4f}" if pos.entry_px is not None else "-"
-        table.add_row(
-            pos.coin,
-            f"{pos.size:,.4f}",
-            entry,
-            f"{pos.unrealized_pnl:,.2f}",
-            f"{pos.leverage_value}x {pos.leverage_type}",
-        )
-
-    console.print()
-    console.print(table)
+    print_open_orders_table(console, open_orders, title="Pending orders", client=client)
 
 
 @app.command("positions")
@@ -227,6 +556,11 @@ def positions() -> None:
         with loading(_loading_message("Fetching positions")):
             client = _client()
             open_positions = client.get_positions()
+            mark_prices = (
+                {name: float(price) for name, price in client.get_perp_mids().items()}
+                if open_positions
+                else {}
+            )
     except HyperliquidClientError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
@@ -235,7 +569,39 @@ def positions() -> None:
         console.print("No open positions.")
         return
 
-    console.print_json(json.dumps([p.raw for p in open_positions], indent=2))
+    print_positions_table(console, open_positions, mark_prices=mark_prices)
+
+
+@app.command("position")
+def position_detail(
+    coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
+    dex: Annotated[
+        str | None, typer.Option("--dex", help="HIP-3 dex name when coin has no prefix")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print raw API payload")] = False,
+) -> None:
+    """Show detailed info for an open position."""
+    try:
+        with loading(_loading_message("Fetching position")):
+            client = _client()
+            pos = client.get_position(coin, dex=dex)
+            if pos is None:
+                from hl_client.markets import resolve_market
+
+                label = resolve_market(coin, dex).coin
+                console.print(f"[red]No open position for[/red] {label}")
+                raise typer.Exit(code=1)
+            mark = client.get_mid(coin, dex=dex)
+    except HyperliquidClientError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_network(client)
+    if json_output:
+        console.print_json(json.dumps(pos.raw, indent=2))
+        return
+
+    print_position_detail(console, pos, mark=mark)
 
 
 @app.command("orders")
@@ -253,89 +619,169 @@ def orders() -> None:
         console.print("No open orders.")
         return
 
-    table = Table(title="Open orders")
-    table.add_column("Coin")
-    table.add_column("Side")
-    table.add_column("Size", justify="right")
-    table.add_column("Price", justify="right")
-    table.add_column("OID", justify="right")
+    print_open_orders_table(console, open_orders, client=client)
 
-    for order in open_orders:
-        side = "buy" if order["side"] == "B" else "sell"
-        table.add_row(
-            order["coin"],
-            side,
-            order["sz"],
-            order["limitPx"],
-            str(order["oid"]),
-        )
 
-    console.print(table)
+@app.command("fills")
+def fills(
+    coin: Annotated[
+        str | None, typer.Argument(help="Optional coin filter, e.g. ETH")
+    ] = None,
+    limit: Annotated[
+        int, typer.Option("--limit", "-n", help="Max fills to show")
+    ] = 25,
+    json_output: Annotated[bool, typer.Option("--json", help="Print raw API payload")] = False,
+) -> None:
+    """Show recent trade fills from Hyperliquid (up to 2000)."""
+    try:
+        with loading(_loading_message("Fetching fills")):
+            client = _client()
+            raw_fills = client.get_user_fills()
+    except HyperliquidClientError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_network(client)
+    shown = filter_fills(raw_fills, coin=coin, limit=limit if limit > 0 else None)
+
+    if json_output:
+        console.print_json(json.dumps(shown, indent=2))
+        return
+
+    if not shown:
+        if coin:
+            console.print(f"No fills for {coin.upper()}.")
+        else:
+            console.print("No fills.")
+        return
+
+    title = "Recent fills"
+    if coin:
+        title = f"Recent fills · {coin.upper()}"
+    print_fills_table(console, shown, title=title)
 
 
 @app.command("open")
 def open_position(
     coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
-    size: Annotated[float, typer.Option("--size", "-s", help="Position size")],
-    buy: Annotated[bool, typer.Option("--buy", help="Open long")] = False,
-    sell: Annotated[bool, typer.Option("--sell", help="Open short")] = False,
+    size: Annotated[str, typer.Option("--size", "-s", help=_SIZE_HELP)],
+    buy: Annotated[bool, typer.Option("--buy", help="Open long (alias: --long)")] = False,
+    sell: Annotated[bool, typer.Option("--sell", help="Open short (alias: --short)")] = False,
+    long: Annotated[bool, typer.Option("--long", help="Open long")] = False,
+    short: Annotated[bool, typer.Option("--short", help="Open short")] = False,
+    usd: Annotated[bool, typer.Option("--usd", help="Explicit USD margin amount")] = False,
+    coin_units: Annotated[
+        bool, typer.Option("--coin", help="Treat --size as coin amount (e.g. 0.01 ETH)")
+    ] = False,
+    notional: Annotated[
+        bool,
+        typer.Option("--notional", help="Treat --size as USD position size instead of margin"),
+    ] = False,
+    leverage: Annotated[
+        int | None,
+        typer.Option("--leverage", "-x", help="Set coin leverage before opening"),
+    ] = None,
+    cross: Annotated[
+        bool, typer.Option("--cross", help="Use cross margin with --leverage")
+    ] = False,
     slippage: Annotated[float, typer.Option("--slippage", help="Max slippage fraction")] = 0.05,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip mainnet confirmation")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
 ) -> None:
     """Market-open a position (long or short)."""
-    is_buy = _side_from_flags(buy=buy, sell=sell)
+    is_buy = _resolve_trade_side(
+        buy=buy, sell=sell, long=long, short=short, skip_prompts=yes
+    )
     side = "long" if is_buy else "short"
 
     try:
-        client = _client()
-        _confirm_trade(
-            client,
-            f"Market open {side} {size} {coin.upper()}",
+        result, resolved = _run_sized_trade(
+            coin,
+            size,
             yes=yes,
+            usd=usd,
+            coin_units=coin_units,
+            notional=notional,
+            leverage=leverage,
+            cross=cross,
+            action="Opening position",
+            summary=lambda resolved_size: f"Market {side} {resolved_size.display}",
+            execute=lambda client, coin_size: client.market_open(
+                coin, is_buy=is_buy, size=coin_size, slippage=slippage
+            ),
         )
-        result = client.market_open(coin, is_buy=is_buy, size=size, slippage=slippage)
-    except (HyperliquidClientError, TradingNotConfiguredError) as exc:
+    except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    _print_order_result(result)
+    _print_order_result(result, headline=f"Market {side} {resolved.display}")
 
 
 @app.command("limit")
 def limit_order(
     coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
     price: Annotated[float, typer.Option("--price", "-p", help="Limit price")],
-    size: Annotated[float, typer.Option("--size", "-s", help="Order size")],
-    buy: Annotated[bool, typer.Option("--buy", help="Buy / long")] = False,
-    sell: Annotated[bool, typer.Option("--sell", help="Sell / short")] = False,
+    size: Annotated[str, typer.Option("--size", "-s", help=_SIZE_HELP)],
+    buy: Annotated[bool, typer.Option("--buy", help="Buy / long (alias: --long)")] = False,
+    sell: Annotated[bool, typer.Option("--sell", help="Sell / short (alias: --short)")] = False,
+    long: Annotated[bool, typer.Option("--long", help="Buy / long")] = False,
+    short: Annotated[bool, typer.Option("--short", help="Sell / short")] = False,
+    usd: Annotated[bool, typer.Option("--usd", help="Explicit USD margin amount")] = False,
+    coin_units: Annotated[
+        bool, typer.Option("--coin", help="Treat --size as coin amount (e.g. 0.01 ETH)")
+    ] = False,
+    notional: Annotated[
+        bool,
+        typer.Option("--notional", help="Treat --size as USD position size instead of margin"),
+    ] = False,
+    leverage: Annotated[
+        int | None,
+        typer.Option("--leverage", "-x", help="Set coin leverage before placing"),
+    ] = None,
+    cross: Annotated[
+        bool, typer.Option("--cross", help="Use cross margin with --leverage")
+    ] = False,
     tif: Annotated[TimeInForce, typer.Option("--tif", help="Time in force")] = "Gtc",
     reduce_only: Annotated[bool, typer.Option("--reduce-only", help="Reduce-only order")] = False,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip mainnet confirmation")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
 ) -> None:
     """Place a limit order."""
-    is_buy = _side_from_flags(buy=buy, sell=sell)
-    side = "buy" if is_buy else "sell"
+    is_buy = _resolve_trade_side(
+        buy=buy, sell=sell, long=long, short=short, skip_prompts=yes
+    )
+    side = "long" if is_buy else "short"
 
     try:
-        client = _client()
-        _confirm_trade(
-            client,
-            f"Limit {side} {size} {coin.upper()} @ {price} ({tif})",
-            yes=yes,
-        )
-        result = client.place_limit_order(
+        result, resolved = _run_sized_trade(
             coin,
-            is_buy=is_buy,
-            size=size,
+            size,
+            yes=yes,
+            usd=usd,
+            coin_units=coin_units,
+            notional=notional,
+            leverage=leverage,
+            cross=cross,
             price=price,
-            tif=tif,
-            reduce_only=reduce_only,
+            action="Placing limit order",
+            summary=lambda resolved_size: (
+                f"Limit {side} {resolved_size.display} @ ${price:,.2f} ({tif})"
+            ),
+            execute=lambda client, coin_size: client.place_limit_order(
+                coin,
+                is_buy=is_buy,
+                size=coin_size,
+                price=price,
+                tif=tif,
+                reduce_only=reduce_only,
+            ),
         )
-    except (HyperliquidClientError, TradingNotConfiguredError) as exc:
+    except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    _print_order_result(result)
+    _print_order_result(
+        result,
+        headline=f"Limit {side} {resolved.display} @ ${price:,.2f} ({tif})",
+    )
 
 
 @app.command("cancel")
@@ -346,57 +792,172 @@ def cancel_order(
 ) -> None:
     """Cancel an open order by OID."""
     try:
-        client = _client()
-        _confirm_trade(client, f"Cancel order {oid} on {coin.upper()}", yes=yes)
-        result = client.cancel_order(coin, oid)
+        result = _run_trade(
+            f"Cancel order {oid} on {coin.upper()}",
+            yes=yes,
+            action="Cancelling order",
+            execute=lambda client: client.cancel_order(coin, oid),
+        )
     except (HyperliquidClientError, TradingNotConfiguredError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    console.print_json(json.dumps(result, indent=2))
+    print_exchange_result(console, result, headline=f"Cancelled order {oid} on {coin.upper()}")
 
 
 @app.command("leverage")
 def leverage(
     coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
     value: Annotated[int, typer.Argument(help="Leverage multiplier")],
-    isolated: Annotated[bool, typer.Option("--isolated", help="Use isolated margin")] = False,
+    cross: Annotated[
+        bool, typer.Option("--cross", help="Use cross margin (shared collateral across positions)")
+    ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip mainnet confirmation")] = False,
 ) -> None:
     """Update leverage for a coin."""
-    mode = "isolated" if isolated else "cross"
+    mode = "cross" if cross else "isolated"
     try:
-        client = _client()
-        _confirm_trade(client, f"Set {coin.upper()} leverage to {value}x ({mode})", yes=yes)
-        result = client.update_leverage(coin, value, is_cross=not isolated)
+        result = _run_trade(
+            f"Set {coin.upper()} leverage to {value}x ({mode})",
+            yes=yes,
+            action="Updating leverage",
+            execute=lambda client: client.update_leverage(coin, value, is_cross=cross),
+        )
     except (HyperliquidClientError, TradingNotConfiguredError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    console.print_json(json.dumps(result, indent=2))
+    print_exchange_result(
+        console,
+        result,
+        headline=f"{coin.upper()} leverage set to {value}x ({mode})",
+    )
+
+
+@app.command("tp")
+def take_profit(
+    coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
+    trigger: Annotated[float, typer.Option("--trigger", "-t", help="Take-profit trigger price")],
+    limit: Annotated[
+        float | None,
+        typer.Option("--limit", "-l", help="Limit/slippage price once triggered"),
+    ] = None,
+    size: Annotated[
+        str | None, typer.Option("--size", "-s", help=_TPSL_SIZE_HELP)
+    ] = None,
+    percent: Annotated[
+        float | None,
+        typer.Option("--percent", "-p", help="Close this percent of the position on trigger"),
+    ] = None,
+    usd: Annotated[bool, typer.Option("--usd", help="Explicit USD position size to close")] = False,
+    coin_units: Annotated[
+        bool, typer.Option("--coin", help="Treat --size as coin amount (e.g. 0.01 ETH)")
+    ] = False,
+    limit_order: Annotated[
+        bool, typer.Option("--limit-order", help="Use limit trigger instead of market")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
+) -> None:
+    """Place a position take-profit order."""
+    _place_tpsl_command(
+        kind="tp",
+        coin=coin,
+        trigger=trigger,
+        limit=limit,
+        limit_order=limit_order,
+        size=size,
+        percent=percent,
+        usd=usd,
+        coin_units=coin_units,
+        yes=yes,
+    )
+
+
+@app.command("sl")
+def stop_loss(
+    coin: Annotated[str, typer.Argument(help="Coin symbol, e.g. ETH")],
+    trigger: Annotated[float, typer.Option("--trigger", "-t", help="Stop-loss trigger price")],
+    limit: Annotated[
+        float | None,
+        typer.Option("--limit", "-l", help="Limit/slippage price once triggered"),
+    ] = None,
+    size: Annotated[
+        str | None, typer.Option("--size", "-s", help=_TPSL_SIZE_HELP)
+    ] = None,
+    percent: Annotated[
+        float | None,
+        typer.Option("--percent", "-p", help="Close this percent of the position on trigger"),
+    ] = None,
+    usd: Annotated[bool, typer.Option("--usd", help="Explicit USD position size to close")] = False,
+    coin_units: Annotated[
+        bool, typer.Option("--coin", help="Treat --size as coin amount (e.g. 0.01 ETH)")
+    ] = False,
+    limit_order: Annotated[
+        bool, typer.Option("--limit-order", help="Use limit trigger instead of market")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
+) -> None:
+    """Place a position stop-loss order."""
+    _place_tpsl_command(
+        kind="sl",
+        coin=coin,
+        trigger=trigger,
+        limit=limit,
+        limit_order=limit_order,
+        size=size,
+        percent=percent,
+        usd=usd,
+        coin_units=coin_units,
+        yes=yes,
+    )
 
 
 @app.command("close")
 def close(
     coin: Annotated[str, typer.Argument(help="Coin symbol to close")],
-    size: Annotated[float | None, typer.Option("--size", "-s", help="Partial close size")] = None,
+    size: Annotated[str | None, typer.Option("--size", "-s", help=_CLOSE_SIZE_HELP)] = None,
+    percent: Annotated[
+        float | None,
+        typer.Option("--percent", "-p", help="Close this percent of the position (e.g. 50)"),
+    ] = None,
+    usd: Annotated[bool, typer.Option("--usd", help="Explicit USD position size to close")] = False,
+    coin_units: Annotated[
+        bool, typer.Option("--coin", help="Treat --size as coin amount (e.g. 0.01 ETH)")
+    ] = False,
     slippage: Annotated[float, typer.Option("--slippage", help="Max slippage fraction")] = 0.05,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip mainnet confirmation")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
 ) -> None:
     """Market-close a position (full or partial)."""
-    close_desc = f"Market close {coin.upper()}"
-    if size is not None:
-        close_desc += f" (size {size})"
-
     try:
-        client = _client()
-        _confirm_trade(client, close_desc, yes=yes)
-        result = client.market_close(coin, size=size, slippage=slippage)
-    except (HyperliquidClientError, TradingNotConfiguredError) as exc:
+        if size is None and percent is None:
+            close_desc = f"Market close {coin.upper()}"
+            result = _run_full_close_trade(
+                coin,
+                yes=yes,
+                slippage=slippage,
+                execute=lambda client: client.market_close(
+                    coin, size=None, slippage=slippage
+                ),
+            )
+            _print_order_result(result, headline=close_desc)
+            return
+
+        result, resolved = _run_close_trade(
+            coin,
+            raw_size=size,
+            percent=percent,
+            yes=yes,
+            usd=usd,
+            coin_units=coin_units,
+            execute=lambda client, coin_size: client.market_close(
+                coin, size=coin_size, slippage=slippage
+            ),
+        )
+    except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    _print_order_result(result)
+    _print_order_result(result, headline=f"Market close {resolved.display}")
 
 
 @wallet_app.command("generate")
@@ -447,6 +1008,115 @@ def wallet_generate(
     console.print("[yellow]Keep this file private. Never commit it to git.[/yellow]")
 
 
+@wallet_app.command("import-key")
+def wallet_import_key(
+    private_key: Annotated[
+        str | None,
+        typer.Argument(help="Private key (0x...). Omit and use --prompt for hidden input."),
+    ] = None,
+    prompt: Annotated[
+        bool,
+        typer.Option("--prompt", "-p", help="Prompt for private key (not echoed)"),
+    ] = False,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", help="Save wallet JSON here (mode 600)"),
+    ] = None,
+    label: Annotated[str | None, typer.Option("--label", help="Optional wallet label")] = None,
+    show_key: Annotated[
+        bool,
+        typer.Option("--show-key", help="Print private key to terminal"),
+    ] = False,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite output file")] = False,
+    write_env: Annotated[
+        bool,
+        typer.Option(
+            "--write-env",
+            help="Write HL_ACCOUNT_ADDRESS and HL_SECRET_KEY to .env",
+        ),
+    ] = False,
+    env_file: Annotated[
+        Path,
+        typer.Option("--env-file", help="Dotenv file to update (default: .env)"),
+    ] = Path(".env"),
+) -> None:
+    """Import an existing private key and save it as a local wallet file."""
+    key_input = private_key
+    if key_input is None:
+        if prompt:
+            key_input = typer.prompt("Private key", hide_input=True)
+        else:
+            console.print(
+                "[red]Error:[/red] Provide a private key argument or use --prompt."
+            )
+            raise typer.Exit(code=1)
+
+    try:
+        wallet = wallet_from_private_key(key_input)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    output_path = out or Path(f"wallets/imported-{timestamp}.json")
+    extra = {"label": label} if label else None
+
+    try:
+        saved_path = save_wallet_file(
+            output_path,
+            wallet,
+            kind="evm",
+            network=get_settings().network,
+            overwrite=force,
+            extra=extra,
+        )
+    except FileExistsError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    console.print("[green]Wallet imported[/green]")
+    console.print(f"[bold]Address:[/bold] {wallet.address}")
+    console.print(f"[bold]Saved to:[/bold] {saved_path}")
+
+    if show_key:
+        console.print(f"[bold red]Private key:[/bold red] {wallet.private_key_hex}")
+
+    if write_env:
+        target_env = resolve_project_path(env_file)
+        try:
+            updated = upsert_env_vars(
+                target_env,
+                {
+                    "HL_ACCOUNT_ADDRESS": wallet.address,
+                    "HL_SECRET_KEY": wallet.private_key_hex,
+                },
+            )
+        except OSError as exc:
+            console.print(f"[red]Error updating {target_env}:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+        console.print(
+            f"[green]Updated {target_env}:[/green] {', '.join(updated)}"
+        )
+    else:
+        target_env = resolve_project_path(env_file)
+        console.print(
+            "[dim]Add to .env or rerun with --write-env to update "
+            f"{target_env}[/dim]"
+        )
+
+    _persist_wallet_to_db(
+        address=wallet.address,
+        private_key=wallet.private_key,
+        kind="evm",
+        network=get_settings().network,
+        label=label,
+        file_path=saved_path,
+        metadata=extra,
+    )
+
+    console.print("[yellow]Keep this file private. Never commit it to git.[/yellow]")
+
+
 @wallet_app.command("approve-agent")
 def wallet_approve_agent(
     name: Annotated[str | None, typer.Option("--name", help="Optional agent label")] = None,
@@ -460,9 +1130,10 @@ def wallet_approve_agent(
 ) -> None:
     """Generate and approve a Hyperliquid API/agent wallet for the configured account."""
     try:
-        client = _client()
+        client = _trading_client()
         _confirm_trade(client, "Approve new Hyperliquid agent wallet", yes=yes)
-        approved = client.approve_agent_wallet(name)
+        with loading(_loading_message("Approving agent wallet")):
+            approved = client.approve_agent_wallet(name)
         timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         output_path = out or Path(f"wallets/agent-{timestamp}.json")
         saved_path = save_wallet_file(
@@ -589,13 +1260,17 @@ def withdraw(
     """Withdraw USDC from Hyperliquid to an external address via the bridge."""
     try:
         dest = normalize_eth_address(destination)
-        client = _client()
-        _confirm_trade(
-            client,
-            f"Withdraw ${amount:,.2f} USDC to {dest}",
-            yes=yes,
-        )
-        result = client.withdraw_to_arbitrum(amount, dest)
+        client = _trading_client()
+        summary = client.get_account_summary()
+        _print_network(client)
+        console.print(f"[bold]Withdrawable:[/bold] ${summary.withdrawable:,.2f}")
+        if not yes and not typer.confirm(
+            f"Withdraw ${amount:,.2f} USDC to {dest}. Continue?"
+        ):
+            console.print("Cancelled.")
+            raise typer.Exit(code=0)
+        with loading(_loading_message("Submitting withdrawal")):
+            result = client.withdraw_to_arbitrum(amount, dest)
     except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
@@ -612,13 +1287,12 @@ def send_usd(
     """Send USD to another Hyperliquid account (internal transfer, not bridge withdraw)."""
     try:
         dest = normalize_eth_address(destination)
-        client = _client()
-        _confirm_trade(
-            client,
+        result = _run_trade(
             f"Send ${amount:,.2f} USD to {dest} on Hyperliquid",
             yes=yes,
+            action="Sending USD",
+            execute=lambda client: client.send_usd(amount, dest),
         )
-        result = client.send_usd(amount, dest)
     except (HyperliquidClientError, TradingNotConfiguredError, ValueError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc

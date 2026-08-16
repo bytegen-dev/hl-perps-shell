@@ -1,0 +1,9 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/clearinghouse.md).
+
+# Clearinghouse
+
+The perps clearinghouse is a component of the execution state on HyperCore. It manages the perps margin state for each address, which includes balance and positions.&#x20;
+
+Deposits are first credited to an address's cross margin balance. Positions by default are also opened in cross margin mode. Isolated margin is also supported, which allows users to allocate margin towards a specific position, disassociating the liquidation risk of that position from all other positions.
+
+The spot clearinghouse analogously manages spot user state for each address, including token balances and holds.

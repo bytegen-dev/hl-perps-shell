@@ -1,0 +1,9 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/building-on-hyperliquid/i-have-api-related-questions.md).
+
+# I have API related questions
+
+Here are the API docs: <https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api>
+
+Please do not open any tickets about API related questions. If you have questions about the API, you can ask in the #api-traders channel in the Discord server: <https://discord.gg/hyperliquid>. You can also search the message history since many people have similar questions.&#x20;
+
+API announcements: <https://t.me/hyperliquid_api>

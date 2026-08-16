@@ -1,0 +1,19 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/about-hyperliquid.md).
+
+# About Hyperliquid
+
+### **What is Hyperliquid?**
+
+Hyperliquid is a performant blockchain built with the vision of a fully onchain open financial system. Liquidity, user applications, and trading activity synergize on a unified platform that will ultimately house all of finance.&#x20;
+
+### Technical overview
+
+Hyperliquid is a layer one blockchain (L1) written and optimized from first principles.&#x20;
+
+Hyperliquid uses a custom consensus algorithm called HyperBFT inspired by HotStuff and its successors. Both the algorithm and networking stack are optimized from the ground up to support the unique demands of the L1.&#x20;
+
+Hyperliquid state execution is split into two broad components: HyperCore and the HyperEVM. HyperCore includes fully onchain perpetual futures and spot order books. Every order, cancel, trade, and liquidation happens transparently with one-block finality inherited from HyperBFT. HyperCore currently supports 200k orders / second, with throughput constantly improving as the node software is further optimized.
+
+The HyperEVM brings the familiar general-purpose smart contract platform pioneered by Ethereum to the Hyperliquid blockchain. With the HyperEVM, the performant liquidity and financial primitives of HyperCore are available as permissionless building blocks for all users and builders. See the HyperEVM documentation section for more technical details.
+
+<figure><img src="/files/06fhFwlvyufYvqdhjiUs" alt="" width="563"><figcaption></figcaption></figure>

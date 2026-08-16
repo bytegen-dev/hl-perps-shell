@@ -1,0 +1,10 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/export-your-email-wallet.md).
+
+# Export your email wallet
+
+If you accidentally send an unsupported asset to your defi wallet:&#x20;
+
+1. Make sure you are logged in with the same email address
+2. Click "Export Email Wallet" in the settings dropdown in the navigation bar
+3. Follow the steps in the pop-up to copy your private key
+4. Import your private key into the wallet extension of your choice (e.g., <https://support.rabby.io/en/articles/14120234-getting-started-with-rabby-extension#h_be51e8edb6>)&#x20;
