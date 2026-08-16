@@ -1,0 +1,11 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/connectivity-issues.md).
+
+# Connectivity issues
+
+{% content-ref url="/pages/fuET4Sl2n78Sr7UUNoEn" %}
+[Connected via wallet](/hyperliquid-docs/support/faq/connectivity-issues/connected-via-wallet.md)
+{% endcontent-ref %}
+
+{% content-ref url="/pages/w9u38SRorf94EAEN5xHi" %}
+[Connected via email](/hyperliquid-docs/support/faq/connectivity-issues/connected-via-email.md)
+{% endcontent-ref %}

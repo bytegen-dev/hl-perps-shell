@@ -13,6 +13,7 @@ from hl_client.wallets import (
     load_wallet_file,
     normalize_eth_address,
     save_wallet_file,
+    wallet_from_private_key,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "load_wallet_file",
     "normalize_eth_address",
     "save_wallet_file",
+    "wallet_from_private_key",
 ]

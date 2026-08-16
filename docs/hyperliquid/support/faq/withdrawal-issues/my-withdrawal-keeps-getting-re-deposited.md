@@ -1,0 +1,12 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/withdrawal-issues/my-withdrawal-keeps-getting-re-deposited.md).
+
+# My withdrawal keeps getting re-deposited
+
+### Why is this happening
+
+* If you’re trying to withdraw using a wallet that’s connected to a Telegram bot, note that most of the Telegram bots are configured to automatically deposit any balance.
+
+### What to do
+
+* You should be able to Send USDC to another address of yours on the Hyperliquid blockchain and then withdraw from that address.&#x20;
+* Alternatively, you can reach out to the Telegram bot’s support to ask for assistance.

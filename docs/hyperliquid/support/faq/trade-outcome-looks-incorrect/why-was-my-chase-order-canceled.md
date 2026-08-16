@@ -1,0 +1,15 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/trade-outcome-looks-incorrect/why-was-my-chase-order-canceled.md).
+
+# Why was my chase order canceled?
+
+### How do chase orders work?
+
+A chase order is a Post Only (ALO) limit order that automatically re-prices to track the best bid or ask until it is filled or terminated. The order rests one tick above the best bid (for buys) or one tick below the best ask (for sells), or at the best bid/ask when the spread is a single tick. As the market moves, it re-prices to stay at the front of the book, always filling as a maker. As partial fills occur, the chase order continues until fully filled or terminated. Chase orders run in the browser tab where they are created.
+
+### A chase order terminates when any of the following occurs:
+
+* An order is rejected - for example, if the order is below minimum notional or there is insufficient margin
+* The limit order that the chase order placed is modified
+* The tab is closed or refreshed
+* The active address is switched, or the wallet is disconnected
+* The same address is connected in another browser

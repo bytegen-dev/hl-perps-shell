@@ -1,0 +1,15 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/brand-kit.md).
+
+# Brand kit
+
+{% file src="/files/EzOFmeeKBXC7Xsjn6Zwq" %}
+
+{% file src="/files/JoOZWbKnL5qEc3ZMHFQo" %}
+
+{% file src="/files/WXEVWQzUEBzsLA9cPPF8" %}
+
+{% file src="/files/u0i3k0bbzyOl4AvBWeF5" %}
+
+{% file src="/files/ycNNyLuiLRKdxseGpQWb" %}
+
+{% file src="/files/2TNqF9iYtJX18xLXdUcf" %}

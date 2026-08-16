@@ -1,0 +1,9 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/usdc.md).
+
+# USDC
+
+USDC is natively minted on the Hyperliquid L1. Circle's contracts on HyperEVM can be found here: [https://hyperevmscan.io/token/0xb88339cb7199b77e23db6e890353e22632ba630f](https://hyperevmscan.io/token/0xb88339cb7199b77e23db6e890353e22632ba630f#transactions).
+
+See <https://developers.circle.com/cctp/howtos/transfer-usdc-from-arbitrum-to-hypercore> for Circle's documentation on Arbitrum to HyperCore CCTP transfers.
+
+The legacy Arbitrum bridge holds less than 10% of the USDC supply on HyperCore. The legacy bridge and its logic in relation to the L1 staking have been audited by Zellic. See the Hyperliquid GitHub repository for the full bridge code, and the [Audits](/hyperliquid-docs/audits.md) section for the audit reports.

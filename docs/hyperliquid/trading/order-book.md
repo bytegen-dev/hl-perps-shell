@@ -1,0 +1,7 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/order-book.md).
+
+# Order book
+
+The order book works in essentially the same way as all centralized exchanges but is fully on-chain. Orders are added where price is an integer multiple of the tick size, and size is an integer multiple of lot size. The orders are matched in price-time priority.&#x20;
+
+See this[ ](/hyperliquid-docs/hypercore/order-book.md)[section](/hyperliquid-docs/hypercore/order-book.md) for further details on order book implementation.

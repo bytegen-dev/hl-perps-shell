@@ -12,6 +12,7 @@ import eth_account
 from hl_client.types import GeneratedWallet
 
 _ETH_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+_ETH_PRIVATE_KEY_RE = re.compile(r"^(?:0x)?[0-9a-fA-F]{64}$")
 
 
 def normalize_eth_address(address: str) -> str:
@@ -28,6 +29,23 @@ def generate_wallet() -> GeneratedWallet:
     if not private_key.startswith("0x"):
         private_key = f"0x{private_key}"
     return GeneratedWallet(address=account.address, private_key=private_key)
+
+
+def wallet_from_private_key(private_key: str) -> GeneratedWallet:
+    """Derive an EVM wallet address from an existing private key."""
+    raw = private_key.strip()
+    if not raw:
+        raise ValueError("Private key is required.")
+    if not _ETH_PRIVATE_KEY_RE.fullmatch(raw):
+        raise ValueError("Private key must be a 32-byte hex string (with or without 0x prefix).")
+
+    key_hex = raw if raw.startswith("0x") else f"0x{raw}"
+    try:
+        account = eth_account.Account.from_key(key_hex)
+    except Exception as exc:
+        raise ValueError("Invalid private key.") from exc
+
+    return GeneratedWallet(address=account.address, private_key=key_hex)
 
 
 def save_wallet_file(

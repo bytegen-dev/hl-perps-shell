@@ -1,0 +1,11 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/building-on-hyperliquid/i-want-to-deploy-a-spot-token-or-list-a-perp.md).
+
+# I want to deploy a spot token or list a perp
+
+### Spot deployment
+
+Spot deployments are permissionless <https://hyperliquid.gitbook.io/hyperliquid-docs/hyperliquid-improvement-proposals-hips/hip-1-native-token-standard>
+
+### Perpetuals listings
+
+Perps listings are based on community request and organic demand: <https://hyperliquid.gitbook.io/hyperliquid-docs/hyperliquid-improvement-proposals-hips/hip-3-builder-deployed-perpetuals>

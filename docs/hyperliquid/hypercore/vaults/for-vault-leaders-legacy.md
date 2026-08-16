@@ -1,0 +1,40 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults/for-vault-leaders-legacy.md).
+
+# For vault leaders (legacy)
+
+### What are the benefits of creating a vault as a leader?
+
+Vault leaders receive a 10% profit share for managing the vault. Vaults can be a great way for a trader to share strategies with his or her community.&#x20;
+
+### How do I create a vault?
+
+Anyone can create a vault:&#x20;
+
+1. Choose a name and write a description for your vault. Note that this cannot be changed later.&#x20;
+2. Deposit a minimum of 100 USDC into your vault.
+
+Creating a vault requires a 10k USDC gas fee, which is distributed to the protocol in the same manner as trading fees.
+
+To ensure vault leaders have skin in the game, you must maintain ≥5% of the vault at all times. You cannot withdraw from your vault if it would cause your share to fall below 5%.&#x20;
+
+### How do I manage my vault?
+
+On the Trade page, select the address dropdown in the navigation bar. Select the vault you want to trade on behalf of in the dropdown. Now, all trades you make will apply to your vault, and everything on the Trade page will reflect your vault.&#x20;
+
+To switch back to your personal account, select "Master" at the top of the address dropdown.  &#x20;
+
+### What assets can a vault trade?&#x20;
+
+Vaults can trade validator-operated perps. They cannot trade spot or HIP-3 perps.&#x20;
+
+### How do I close my vault?
+
+On your vault’s dedicated page, click the Leader Actions dropdown and select “Close Vault.” A modal will appear to confirm that you want to close your vault. All positions must be closed before the vault can close. All depositors will receive their share of the vault when it is closed.
+
+### What happens to open positions in a vault when someone withdraws?
+
+When someone withdraws from a vault, if there is enough margin to keep the open positions according to the leverages set, the withdrawal does not affect open positions.
+
+If there is not enough margin available, open orders that are using margin will be canceled. Orders will be canceled in increasing order of margin used. &#x20;
+
+If there is still not enough margin available, 20% of positions are automatically closed. This is repeated until enough margin is freed up such that the user's withdrawal can be processed. Vault leaders can also set vaults to always proportionally close positions on withdrawals to maintain similar liquidation prices for positions.

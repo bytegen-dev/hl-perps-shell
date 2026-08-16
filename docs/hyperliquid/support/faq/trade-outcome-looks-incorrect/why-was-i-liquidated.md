@@ -1,0 +1,7 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/trade-outcome-looks-incorrect/why-was-i-liquidated.md).
+
+# Why was I liquidated?
+
+### Reasoning
+
+* A liquidation event occurs when a trader's positions move against them to the point where the account equity falls below the maintenance margin. You can read about how liquidations work here: <https://hyperliquid.gitbook.io/hyperliquid-docs/trading/liquidations>

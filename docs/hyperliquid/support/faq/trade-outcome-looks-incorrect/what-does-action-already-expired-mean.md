@@ -1,0 +1,11 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/trade-outcome-looks-incorrect/what-does-action-already-expired-mean.md).
+
+# What does "Action already expired" mean?
+
+This error message appears if you perform an action (e.g., placing an order) and it's not accepted by the L1 within 15 seconds. This is meant to prevent against situations where your connection is unstable or the chain is congested and you would not want the action to be delayed by more than 15 seconds.&#x20;
+
+If you still want the action to go through (e.g., in a situation where your internet connection is bad, but you still want to trade), go to the settings dropdown and check the box next to "Disable Transaction Delay Protection".&#x20;
+
+Important: Be aware that disabling this protection may cause delayed orders to be placed after reconnection or when congestion eases. This may result in multiple order placements (if you made multiple attempts to execute an order during the delay) when you only intended for a single action to take place. As an example, placing a short order to close a long position may result in closing the long and opening a short position if multiple short orders were attempted during the delay.
+
+<figure><img src="/files/Q14XE9lXzXL0c2WVxMdS" alt="" width="270"><figcaption></figcaption></figure>

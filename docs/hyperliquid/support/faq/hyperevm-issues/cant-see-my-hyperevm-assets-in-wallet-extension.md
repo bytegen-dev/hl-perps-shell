@@ -1,0 +1,25 @@
+> For the complete documentation index, see [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://hyperliquid.gitbook.io/hyperliquid-docs/support/faq/hyperevm-issues/cant-see-my-hyperevm-assets-in-wallet-extension.md).
+
+# Can’t see my HyperEVM assets in wallet extension
+
+Here is a guide with common questions regarding how to use the HyperEVM: <https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/how-to-use-the-hyperevm>
+
+### Add HyperEVM to your wallet extension
+
+Follow the steps below or using Chainlist: <https://chainlist.org/chain/999>
+
+* Add the chain to your wallet using "Add custom network":&#x20;
+* Chain ID: 999&#x20;
+* Network Name: Hyperliquid&#x20;
+* RPC URL: <https://rpc.hyperliquid.xyz/evm&#x20>;
+* Currency Symbol: HYPE
+
+### For specific HyperEVM asset - add custom network token <a href="#custom-network-token" id="custom-network-token"></a>
+
+* Click the wallet icon (see below) to the right of the Contract in the info bar for a given spot asset on the Trade page
+
+<figure><img src="/files/OF6LVizNzj3bJEHcSZNG" alt=""><figcaption></figcaption></figure>
+
+* To do this manually, you can add the contract address for a token directly to your wallet extension. You can find the contract address for a given token using a HyperEVM explorer, such as <https://www.hyperscan.com/token/0x9b498C3c8A0b8CD8BA1D9851d40D186F1872b44E> or <https://purrsec.com/address/0x9b498c3c8a0b8cd8ba1d9851d40d186f1872b44e> for PURR &#x20;
+
+If you have tried the above, but your wallet extension does not support the HyperEVM as a custom network, consider using Rabby, which supports the HyperEVM as an integrated network: <https://support.rabby.io/en/articles/14120403-migrating-from-metamask-or-other-wallets>
