@@ -11,7 +11,7 @@ Offline copy of the official [Hyperliquid GitBook docs](https://hyperliquid.gitb
 Source index: [llms.txt](https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt)  
 Markdown pages: append `.md` to any GitBook page URL.
 
-## Key pages for hl-xfgen
+## Key pages for hl-perps-shell
 
 | Topic | Local path |
 |-------|------------|

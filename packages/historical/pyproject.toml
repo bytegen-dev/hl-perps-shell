@@ -1,7 +1,7 @@
 [project]
 name = "hl-historical"
 version = "0.1.0"
-description = "Historical market data and signal verification for hl-xfgen"
+description = "Historical perp market data helpers for hl-perps-shell"
 requires-python = ">=3.12"
 dependencies = [
     "hl-client",

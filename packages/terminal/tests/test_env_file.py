@@ -4,7 +4,7 @@ from hl_terminal.env_file import resolve_project_path, upsert_env_vars
 
 
 def test_resolve_project_path_from_nested_cwd(tmp_path: Path, monkeypatch) -> None:
-    project = tmp_path / "hl-xfgen"
+    project = tmp_path / "hl-perps-shell"
     project.mkdir()
     (project / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
     nested = project / "packages" / "terminal"

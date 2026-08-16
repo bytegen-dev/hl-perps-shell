@@ -1,4 +1,4 @@
-"""Database layer for hl-xfgen."""
+"""Database layer for hl-perps-shell."""
 
 from hl_core.db.crypto import decrypt_secret, encrypt_secret, generate_encryption_key
 from hl_core.db.engine import get_engine, init_database

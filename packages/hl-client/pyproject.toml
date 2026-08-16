@@ -1,7 +1,7 @@
 [project]
 name = "hl-client"
 version = "0.1.0"
-description = "Shared Hyperliquid client wrapper for hl-xfgen"
+description = "Hyperliquid perps API client for hl-perps-shell"
 requires-python = ">=3.12"
 dependencies = [
     "hl-core",

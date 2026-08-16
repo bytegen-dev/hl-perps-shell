@@ -1,9 +1,10 @@
 [project]
-name = "hl-xfgen"
+name = "hl-perps-shell"
 version = "0.1.0"
-description = "Hyperliquid X-Factor Gen — personal trading and research tooling"
+description = "A shell-style CLI for Hyperliquid perpetuals only"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
 dependencies = [
     "hl-terminal",
 ]

@@ -1,7 +1,7 @@
 [project]
 name = "hl-terminal"
 version = "0.1.0"
-description = "CLI trading terminal for Hyperliquid"
+description = "Shell-style CLI for Hyperliquid perpetuals"
 requires-python = ">=3.12"
 dependencies = [
     "hl-client",

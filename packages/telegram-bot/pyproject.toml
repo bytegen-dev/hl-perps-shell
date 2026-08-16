@@ -1,7 +1,7 @@
 [project]
 name = "hl-telegram-bot"
 version = "0.1.0"
-description = "Personal Telegram trading bot for Hyperliquid (Phase 1 stub)"
+description = "Telegram interface for Hyperliquid (planned)"
 requires-python = ">=3.12"
 dependencies = [
     "hl-client",

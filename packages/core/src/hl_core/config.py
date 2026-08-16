@@ -24,7 +24,7 @@ class HyperliquidSettings(BaseSettings):
     account_address: str | None = None
     secret_key: SecretStr | None = None
     skip_ws: bool = True
-    database_url: str | None = "postgresql+psycopg://hlxfgen:hlxfgen@localhost:5440/hlxfgen"
+    database_url: str | None = None
     wallet_encryption_key: SecretStr | None = None
 
     @field_validator("account_address")

@@ -58,7 +58,7 @@ from hl_terminal.ui import loading
 
 app = typer.Typer(
     name="hl",
-    help="Hyperliquid trading terminal for hl-xfgen.",
+    help="Hyperliquid perps shell — trade and research perpetuals from your terminal.",
     no_args_is_help=True,
 )
 wallet_app = typer.Typer(help="Generate and manage wallets.")

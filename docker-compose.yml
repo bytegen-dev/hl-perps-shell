@@ -1,21 +1,23 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: hl-xfgen-postgres
+    container_name: hl-perps-shell-postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: hlxfgen
-      POSTGRES_PASSWORD: hlxfgen
-      POSTGRES_DB: hlxfgen
+      POSTGRES_USER: ${POSTGRES_USER:-hlperpsshell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-hlperpsshell}
     ports:
-      - "5440:5432"
+      - "${POSTGRES_PORT:-5440}:5432"
     volumes:
-      - hl_xfgen_pgdata:/var/lib/postgresql/data
+      - hl_perps_shell_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hlxfgen -d hlxfgen"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
 
 volumes:
-  hl_xfgen_pgdata:
+  hl_perps_shell_pgdata:

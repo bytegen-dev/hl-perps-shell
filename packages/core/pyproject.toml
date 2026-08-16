@@ -1,7 +1,7 @@
 [project]
 name = "hl-core"
 version = "0.1.0"
-description = "Shared config, logging, and types for hl-xfgen"
+description = "Shared config, logging, and types for hl-perps-shell"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.0",
